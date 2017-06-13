@@ -1,0 +1,239 @@
+﻿using UnityEngine;
+using System.Collections;
+using System;
+using System.IO;
+using System.Text;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading;
+
+public class StreamSocket : MonoBehaviour
+{
+    [Header("Camera Settings")]
+    public Camera Camera1;
+    public RenderTexture renderTexture1;
+    public Camera Camera2;
+    public RenderTexture renderTexture2;
+    public Camera Camera3;
+    public RenderTexture renderTexture3;
+	public Texture2D text1;
+    
+    [Tooltip("Порт")]
+    [SerializeField]
+    private int serverPort = 11100;
+    [Tooltip("Pixel width for video recording")]
+    public int frameWidth = 1280;
+    [Tooltip("Pixel Height for video recording")]
+    public int frameHeight = 720;
+    [Tooltip("Anti aliasing parameter of video")]
+    public int targetFrameRate = 30;
+    [Tooltip("Quality of recorded video")]
+    public String GetHostEntryAddr = "localhost";
+    [Tooltip("localhost")]
+
+
+
+    //-Переменные для рендера--//
+    RenderTexture renderTexture;
+	Texture2D screenShot;
+    byte[] buf = new byte[1024 * 1024];
+    byte[] testMsg = new byte[1024];
+    bool isEndOfRender = false;
+    byte[] cam1_byte;
+    byte[] cam2_byte;
+    byte[] cam3_byte;
+    //-------------------------//
+
+    //-Переменные для сокета---//
+    Socket handler;
+    Socket sListener;
+    bool connected = false;
+    
+    //-------------------------//
+
+    //---------Хлам------------//
+    int i = 0;
+    bool isRender = false;
+    bool isServerWork = true;
+    bool stopSocket = false;
+    //-------------------------//
+    Thread socketThread = null;
+    // Use this for initialization
+    void Start()
+    {
+        //cam1_byte = new byte[8192*10];
+        socketThread = new Thread(startServer);
+        //socketThread = new Thread(startServerSocket);
+        socketThread.Start();
+        //isRender = true;
+	}
+    
+    void Update()
+    {
+        isEndOfRender = false;
+        StartCoroutine(SaveCameraView(Camera1, 1));
+        isEndOfRender = true;
+    }
+
+
+    void OnGUI()
+    {
+        if (GUI.Button(new Rect(20, 20, 50, 50), "start"))
+        {
+            isRender = true;
+        }
+        if (GUI.Button(new Rect(100, 20, 50, 50), "stop"))
+        {
+            isRender = false;
+        }
+        if (GUI.Button(new Rect(150, 20, 50, 50), "save"))
+        {
+            System.IO.File.WriteAllBytes("camera_image_"+ 1 +".png", cam1_byte);
+            System.IO.File.WriteAllBytes("camera_image_"+ 2 +".png", cam2_byte);
+            System.IO.File.WriteAllBytes("camera_image_"+ 3 +".png", cam3_byte);
+        }
+        if (GUI.Button(new Rect(200, 20, 50, 50), "srv stp"))  
+        {
+            isServerWork = false;
+            socketThread.Abort();//прерываем поток
+            socketThread.Join(500);//таймаут на завершение
+        }
+    }
+    
+    void OnPostRender()
+    {
+        
+    }
+
+    void OnApplicationQuit()
+    {
+        isServerWork = false;
+        socketThread.Join(500);//таймаут на завершение
+        socketThread.Abort();//прерываем поток
+        socketThread.Join(500);//таймаут на завершение
+    }
+
+    void startServer()
+    {   
+        TcpListener listener = null;
+        try
+        {   
+            //IPHostEntry ipHost = Dns.GetHostEntry(GetHostEntryAddr);
+            IPAddress ipAddr = IPAddress.Parse("127.0.0.1");
+            //IPAddress ipAddr = ipHost.AddressList[0];
+            listener = new TcpListener(ipAddr, serverPort);
+
+            listener.Start();
+            Debug.Log("connect...");
+            TcpClient client = listener.AcceptTcpClient();
+                
+            Debug.Log("client connected! ");
+            NetworkStream stream = client.GetStream();
+            //cam1_byte = new byte[100000];
+            byte[] size = new byte[1024];
+            // int i = 0;
+            Debug.Log("start transfer ");
+            while(isServerWork)
+            {
+                while(!isEndOfRender){}
+                Debug.Log(cam1_byte.Length);
+
+
+                // byte[] bytes = BitConverter.GetBytes(cam1_byte.Length);
+                
+                // stream.Write(bytes,0,bytes.Length);
+
+                stream.Write(cam1_byte, 0, cam1_byte.Length);
+                //stream.Flush();
+                Debug.Log("ok");
+            }
+            client.Close();
+            listener.Stop();
+            Debug.Log(" server off! ");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+        }
+        finally
+        {
+            listener.Stop();
+        }
+    }
+
+    void startServerSocket()
+    {   
+        IPHostEntry ipHost = Dns.GetHostEntry("localhost");
+        IPAddress ipAddr = ipHost.AddressList[0];
+        IPEndPoint ipEndPoint = new IPEndPoint(ipAddr, serverPort);
+
+        Socket sListener = new Socket(ipAddr.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
+
+        try
+        {   
+           
+            sListener.Bind(ipEndPoint);
+            sListener.Listen(10);
+            Debug.Log("connect...");
+            Socket handler = sListener.Accept();
+            Debug.Log("client connected! ");
+            while(isServerWork)
+            {
+                while(isEndOfRender == false)
+                {
+                }
+                // отправка файла
+                handler.Send(cam1_byte);
+                Debug.Log("writed! ");   
+            }
+            handler.Shutdown(SocketShutdown.Both);
+            handler.Close();
+            
+            Debug.Log(" server off! ");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine(ex.ToString());
+        }
+        finally
+        {
+        
+        }
+    }
+
+    void LateUpdate()
+    {
+        if(isRender)
+        {
+            isEndOfRender = false;
+            StartCoroutine(SaveCameraView(Camera1, 1));
+            //StartCoroutine(SaveCameraView(Camera2, 2));
+            //StartCoroutine(SaveCameraView(Camera3, 3));
+            isEndOfRender = true;
+        }
+    }
+    
+    public IEnumerator SaveCameraView(Camera renderCam, int i)
+    {
+        yield return new WaitForEndOfFrame();
+        // получаем текстуру привязанную к камере
+        RenderTexture rendText = RenderTexture.active;
+        RenderTexture.active = renderCam.targetTexture;
+        // рендерим
+        renderCam.Render();
+        // создание новой текстуры2д с текстурой куда рендерит камера
+        Texture2D cameraImage= new Texture2D(renderCam.targetTexture.width, renderCam.targetTexture.height, TextureFormat.RGB24, false);
+        cameraImage.ReadPixels(new Rect(0, 0, renderCam.targetTexture.width, renderCam.targetTexture.height), 0, 0);
+        cameraImage.Apply();
+        RenderTexture.active = rendText;
+        if(i==1) cam1_byte = cameraImage.EncodeToJPG();
+        if(i==2) cam2_byte = cameraImage.EncodeToPNG();
+        if(i==3) cam3_byte = cameraImage.EncodeToPNG();
+        //byte[] bytes = cameraImage.EncodeToPNG();
+        
+        // save the encoded image to a file
+        //System.IO.File.WriteAllBytes("cam/camera_image_"+ 0 +".jpg", cam1_byte);
+        //yield return cam1_byte;
+    }
+}
+
