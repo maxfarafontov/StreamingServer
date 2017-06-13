@@ -20,20 +20,35 @@ namespace StreamingServer
         
         private String logMessage = "";
         private String host = "127.0.0.1";
-        private int port = 11100;
+        private int camera_port_1 = 11101;
+        private int camera_port_2 = 11102;
+        private int camera_port_3 = 11103;
+        private int camera_portS_1 = 8080;
+        private int camera_portS_2 = 8081;
+        private int camera_portS_3 = 8082;
         private int width = 256;
         private int heigh = 256;
-        private Stream imagestream;
+
         private Server server;
         private Size size; // тут храним разрешение 
         private bool isWorkClient = true;
         private bool frameRecieved = false;
 
         public int frameCount = 0; // счетчик принятых кадров
+
         public byte[] cam1_byte; // массивы для буфера с камер
-        private byte[] cam1_render;
         public byte[] cam2_byte;
         public byte[] cam3_byte;
+
+        public byte[] cam1_render;
+        public byte[] cam2_render;
+        public byte[] cam3_render;
+
+        public FormShowImage f;
+        public Image returnImage;
+        public Image image1FromForm;
+        public Image image2FromForm;
+        public Image image3FromForm;
 
         public Form1()
         {
@@ -45,9 +60,11 @@ namespace StreamingServer
         private void Form1_Load(object sender, EventArgs e)
         {
             
-            textbox_host.Text = host;
-            textBox_port.Text = port.ToString();
-            btn_stop_client.Enabled = false;
+            textbox_host_1.Text = host;
+            textBox_port_1.Text = camera_port_1.ToString();
+            textBox_port_2.Text = camera_port_2.ToString();
+            textBox_port_3.Text = camera_port_3.ToString();
+            btn_stop_client_1.Enabled = false;
 
             server.ImagesSource = ImageRecieve(size.Width,size.Height);
             server.Start();
@@ -55,7 +72,7 @@ namespace StreamingServer
 
         private void tcpClient()
         {
-            recieveImage(Convert.ToInt32(textBox_port.Text));
+            recieveImage(Convert.ToInt32(textBox_port_1.Text));
         }
 
         /// <summary>
@@ -68,20 +85,27 @@ namespace StreamingServer
         {
             while (true)
             {
-                yield return encode(cam1_render);
+                MemoryStream ms = new MemoryStream(cam1_byte);
+                returnImage = Image.FromStream(ms);
+                yield return returnImage;
             }
         }
-        private Image encode(byte[] byteArrayIn)
-        {
-            MemoryStream ms = new MemoryStream(byteArrayIn);
-            Image returnImage = Image.FromStream(ms);
-            return returnImage;
-        }
 
-        private void showPicture(byte[] byteImage)
+        private void renderPicture()
         {
             if (frameRecieved == true)
             {
+                //MemoryStream ms1 = new MemoryStream(cam1_render);
+                //image1FromForm = Image.FromStream(ms1);
+                MemoryStream ms2 = new MemoryStream(cam2_render);
+                image2FromForm = Image.FromStream(ms2);
+                //MemoryStream ms3 = new MemoryStream(cam3_render);
+                //image3FromForm = Image.FromStream(ms3);
+                //pictureBox1.Image = image1FromForm;
+                //f.picturebox1.Image = image;
+                frameRecieved = false;
+                
+                
             }
         }
 
@@ -89,13 +113,9 @@ namespace StreamingServer
         {
             BeginInvoke(new MethodInvoker(delegate {
                 toolStripProgressBar1.Value = 50;
-                btn_start_client.Enabled = false;
+                btn_start_client_1.Enabled = false;
             }));
-
-                MemoryStream ms = new MemoryStream(cam1_byte);
-                var image = Image.FromStream(ms);
-                pictureBox1.Image = image;
-                frameRecieved = false;
+            
             int i = 0;
             int request = 0;
             NetworkStream stream = null;
@@ -103,14 +123,14 @@ namespace StreamingServer
             try
             {
                 // соединяемся с сервером
-                client.Connect(textbox_host.Text, Convert.ToInt32(textBox_port.Text));
+                client.Connect(textbox_host_1.Text, Convert.ToInt32(textBox_port_1.Text));
 
                 BeginInvoke(new MethodInvoker(delegate
                 {
                     if (client.Connected)
                     {
-                        btn_start_client.Enabled = false;
-                        btn_stop_client.Enabled = true;
+                        btn_start_client_1.Enabled = false;
+                        btn_stop_client_1.Enabled = true;
                         statusConnect.Text = "Подключен к серверу";
                         logMessage += ("Connected! " + Environment.NewLine);
                         toolStripProgressBar1.Value = 100;
@@ -118,15 +138,17 @@ namespace StreamingServer
                     else
                     {
                         toolStripProgressBar1.Value = 0;
-                        btn_start_client.Enabled = true;
+                        btn_start_client_1.Enabled = true;
                     }
                 }));
 
                 stream = client.GetStream();
 
-                cam1_byte = new byte[8192*10];
+                cam1_byte = new byte[8192 * 10];
+                cam2_byte = new byte[8192 * 10];
+                cam3_byte = new byte[8192 * 10];
                 cam1_render = new byte[8192*10];
-                byte[] size = new byte[1024*10];
+                
 
                 BeginInvoke(new MethodInvoker(delegate
                 {
@@ -136,26 +158,20 @@ namespace StreamingServer
                 while (isWorkClient)
                 {
 
-                    //cam1_render = new byte[client.ReceiveBufferSize];
-                    //for (int j = 0; j < 10; j++)
-                    //{
-
-
-                    //}
-                    //request = stream.Read(size, 0, client.ReceiveBufferSize);
-
-                    //int sizeofbytes = BitConverter.ToInt32(size, 0);
 
                     request = stream.Read(cam1_byte, 0, client.ReceiveBufferSize);
+                    //request = stream.Read(cam2_byte, 0, client.ReceiveBufferSize);
+                    //request = stream.Read(cam3_byte, 0, client.ReceiveBufferSize);
                     cam1_render = cam1_byte;
+                    //cam2_render = cam2_byte;
+                    //cam3_render = cam3_byte;
                     //cam1_render = cam1_byte;
-                    
+
                     frameRecieved = true;
-                    //imagestream.WriteAsync(cam1_byte, 0, client.ReceiveBufferSize);
-                    //string message = Encoding.UTF8.GetString(cam1_byte, 0, request);
-                    //if (message == "stop") break;
+                    
+
                     //File.WriteAllBytes("cam/camera_image_" + i + ".jpg", cam1_byte);
-                    //i++;
+
                     frameCount++;
                     //Thread.Sleep(1000);
                 }
@@ -165,8 +181,8 @@ namespace StreamingServer
                 {
                     statusConnect.Text = "Не подключен ";
                     toolStripProgressBar1.Value = 0;
-                    btn_start_client.Enabled = true;
-                    btn_stop_client.Enabled = false;
+                    btn_start_client_1.Enabled = true;
+                    btn_stop_client_1.Enabled = false;
                     isWorkClient = false;
                 }));
             }
@@ -181,7 +197,7 @@ namespace StreamingServer
             finally
             {
                 BeginInvoke(new MethodInvoker(delegate {
-                    btn_start_client.Enabled = true;
+                    btn_start_client_1.Enabled = true;
                 }));
                 client.Close();
             }
@@ -191,7 +207,7 @@ namespace StreamingServer
         {
             logBox.Text = logMessage;
             label2.Text = frameCount.ToString();
-            showPicture(cam1_byte);
+            //renderPicture();
         }
 
         /// <summary>
@@ -232,8 +248,10 @@ namespace StreamingServer
         }
         private void btn_show_form2_Click(object sender, EventArgs e)
         {
-            FormShowImage newForm = new FormShowImage(this);
-            newForm.Show();
+            f = new FormShowImage();
+            f.Tag = this;
+            f.Show();
+            
         }
 
         private void btn_clear_log_Click(object sender, EventArgs e)
