@@ -92,7 +92,7 @@ namespace StreamingServer
                 btn_start_client.Enabled = false;
             }));
 
-                MemoryStream ms = new MemoryStream(byteImage);
+                MemoryStream ms = new MemoryStream(cam1_byte);
                 var image = Image.FromStream(ms);
                 pictureBox1.Image = image;
                 frameRecieved = false;
