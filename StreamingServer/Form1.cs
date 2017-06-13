@@ -29,9 +29,13 @@ namespace StreamingServer
         private int width = 256;
         private int heigh = 256;
 
-        private Server server;
-        private Size size; // тут храним разрешение 
+        private Server server_cam_1;
+        private Server server_cam_2;
+        private Server server_cam_3;
+        
         private bool isWorkClient = true;
+        private bool isWorkClient_1 = true;
+
         private bool frameRecieved = false;
 
         public int frameCount = 0; // счетчик принятых кадров
@@ -53,8 +57,8 @@ namespace StreamingServer
         public Form1()
         {
             InitializeComponent();
-            server = new Server();
-            size = new Size(width, heigh);
+            server_cam_1 = new Server();
+            
         }
 
         private void Form1_Load(object sender, EventArgs e)
@@ -64,10 +68,18 @@ namespace StreamingServer
             textBox_port_1.Text = camera_port_1.ToString();
             textBox_port_2.Text = camera_port_2.ToString();
             textBox_port_3.Text = camera_port_3.ToString();
+            textBox_portS_1.Text = camera_portS_1.ToString();
+            textBox_portS_2.Text = camera_portS_2.ToString();
+            textBox_portS_3.Text = camera_portS_3.ToString();
             btn_stop_client_1.Enabled = false;
+            btn_stop_client_2.Enabled = false;
+            btn_stop_client_3.Enabled = false;
+            btn_stop_stream_1.Enabled = false;
+            btn_stop_stream_2.Enabled = false;
+            btn_stop_stream_3.Enabled = false;
 
-            server.ImagesSource = ImageRecieve(size.Width,size.Height);
-            server.Start();
+            server_cam_1.ImagesSource = ImageRecieve();
+            server_cam_1.Start();
         }
 
         private void tcpClient()
@@ -81,7 +93,7 @@ namespace StreamingServer
         /// <param name="width">ширина</param>
         /// <param name="height">высота</param>
         /// <returns></returns>
-        private IEnumerable<Image> ImageRecieve(int width, int height) // 1280x720
+        private IEnumerable<Image> ImageRecieve() // 1280x720
         {
             while (true)
             {
@@ -95,17 +107,15 @@ namespace StreamingServer
         {
             if (frameRecieved == true)
             {
-                //MemoryStream ms1 = new MemoryStream(cam1_render);
-                //image1FromForm = Image.FromStream(ms1);
+                MemoryStream ms1 = new MemoryStream(cam1_render);
+                image1FromForm = Image.FromStream(ms1);
                 MemoryStream ms2 = new MemoryStream(cam2_render);
                 image2FromForm = Image.FromStream(ms2);
-                //MemoryStream ms3 = new MemoryStream(cam3_render);
-                //image3FromForm = Image.FromStream(ms3);
+                MemoryStream ms3 = new MemoryStream(cam3_render);
+                image3FromForm = Image.FromStream(ms3);
                 //pictureBox1.Image = image1FromForm;
                 //f.picturebox1.Image = image;
                 frameRecieved = false;
-                
-                
             }
         }
 
@@ -174,6 +184,96 @@ namespace StreamingServer
 
                     frameCount++;
                     //Thread.Sleep(1000);
+                }
+                stream.Close();
+
+                BeginInvoke(new MethodInvoker(delegate
+                {
+                    statusConnect.Text = "Не подключен ";
+                    toolStripProgressBar1.Value = 0;
+                    btn_start_client_1.Enabled = true;
+                    btn_stop_client_1.Enabled = false;
+                    isWorkClient = false;
+                }));
+            }
+            catch (SocketException ex)
+            {
+                BeginInvoke(new MethodInvoker(delegate {
+                    statusConnect.Text = "Ошибка подключения!";
+                    toolStripProgressBar1.Value = 0;
+                    logMessage += ex.ToString();
+                }));
+            }
+            finally
+            {
+                BeginInvoke(new MethodInvoker(delegate {
+                    btn_start_client_1.Enabled = true;
+                }));
+                client.Close();
+            }
+        }
+
+        private void recieve(int port, byte[] byte_image, int cam_number)
+        {
+            BeginInvoke(new MethodInvoker(delegate {
+                if (cam_number == 1) btn_start_client_1.Enabled = false;
+                if (cam_number == 2) btn_start_client_2.Enabled = false;
+                if (cam_number == 3) btn_start_client_3.Enabled = false;
+            }));
+            
+            //if (cam_number == 1) bool isWork = isWorkClient;
+
+            int request = 0;
+
+            TcpClient client = new TcpClient();
+            try
+            {
+                // соединяемся с сервером
+                client.Connect(textbox_host_1.Text, Convert.ToInt32(textBox_port_1.Text));
+
+                BeginInvoke(new MethodInvoker(delegate
+                {
+                    if (client.Connected)
+                    {
+                        if (cam_number == 1)
+                        {
+                            btn_start_client_1.Enabled = false;
+                            btn_stop_client_1.Enabled = true;
+                        }
+                        if (cam_number == 2)
+                        {
+                            btn_start_client_2.Enabled = false;
+                            btn_stop_client_2.Enabled = true;
+                        }
+                        if (cam_number == 3)
+                        {
+                            btn_start_client_3.Enabled = false;
+                            btn_stop_client_3.Enabled = true;
+                        }
+                        logMessage += ("Cam " + cam_number + " connecting..." + Environment.NewLine);
+                    }
+                    else
+                    {
+                        toolStripProgressBar1.Value = 0;
+                        btn_start_client_1.Enabled = true;
+                    }
+                }));
+
+                NetworkStream stream = client.GetStream();
+
+                byte_image = new byte[8192 * 10];
+                
+                
+                BeginInvoke(new MethodInvoker(delegate
+                {
+                    logMessage += ("Cam " + cam_number + " connected!" + Environment.NewLine);
+                }));
+
+                while (isWorkClient_1)
+                {
+                    request = stream.Read(byte_image, 0, client.ReceiveBufferSize);
+                    MemoryStream ms = new MemoryStream(byte_image);
+                    image1FromForm = Image.FromStream(ms);
                 }
                 stream.Close();
 
