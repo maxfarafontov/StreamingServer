@@ -31,14 +31,9 @@ namespace StreamingServer
 
         public void WriteHeader()
         {
-
-            Write(
-                    "HTTP/1.1 200 OK\r\n" +
+            Write(" HTTP/1.1 200 OK\r\n" +
                     "Content-Type: multipart/x-mixed-replace; boundary=" +
-                    this.Boundary +
-                    "\r\n"
-                    );
-
+                    this.Boundary + "\r\n");
             this.Stream.Flush();
         }
 
