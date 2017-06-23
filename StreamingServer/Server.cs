@@ -114,7 +114,6 @@ namespace StreamingServer
         /// <param name="state"></param>
         private void ServerThread(object state)
         {
-
             try
             {
                 Socket Server = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
@@ -126,7 +125,6 @@ namespace StreamingServer
 
                 foreach (Socket client in Server.IncommingConnectoins())
                     ThreadPool.QueueUserWorkItem(new WaitCallback(ClientThread), client);
-
             }
             catch { }
 
@@ -146,12 +144,10 @@ namespace StreamingServer
 
             lock (_Clients)
                 _Clients.Add(socket);
-
             try
             {
                 using (MjpegStream wr = new MjpegStream(new NetworkStream(socket, true)))
                 {
-
                     // Writes the response header to the client.
                     wr.WriteHeader();
 
@@ -163,7 +159,6 @@ namespace StreamingServer
 
                         wr.Write(imgStream);
                     }
-
                 }
             }
             catch { }
